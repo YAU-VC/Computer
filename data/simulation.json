@@ -3,17 +3,17 @@
         "id": "bubblesort",
         "category": {
             "en-US": "ICT",
-            "zh-HK": "資訊及通訊科技"
+            "zh-HK": "ICT"
         },
         "title": {
             "en-US": "Bubble Sort",
-            "zh-HK": "冒泡排序"
+            "zh-HK": "Bubble Sort"
         },
         "description": {
             "en-US": "A simulation of bubble sort.",
-            "zh-HK": "冒泡排序"
+            "zh-HK": "A simulation of bubble sort."
         },
-        "contributors": [
+        "contributor": [
             "LF YAU"
         ],
         "simulationUrl": "simulations/ICT/bubble-sort.html",
@@ -25,17 +25,17 @@
         "id": "selectsort",
         "category": {
             "en-US": "ICT",
-            "zh-HK": "資訊及通訊科技"
+            "zh-HK": "ICT"
         },
         "title": {
             "en-US": "Selection Sort",
-            "zh-HK": "選擇排序"
+            "zh-HK": "Selection Sort"
         },
         "description": {
             "en-US": "A simulation of selection sort.",
-            "zh-HK": "選擇排序"
+            "zh-HK": "A simulation of selection sort."
         },
-        "contributors": [
+        "contributor": [
             "LF YAU"
         ],
         "simulationUrl": "simulations/ICT/selection-sort.html",
@@ -47,7 +47,7 @@
         "id": "selectsort",
         "category": {
             "en-US": "ICT",
-            "zh-HK": "資訊及通訊科技"
+            "zh-HK": "ICT"
         },
         "title": {
             "en-US": "Insertion Sort",
@@ -55,9 +55,9 @@
         },
         "description": {
             "en-US": "A simulation of insertion sort.",
-            "zh-HK": "insertion Sort"
+            "zh-HK": "A simulation of insertion sort."
         },
-        "contributors": [
+        "contributor": [
             "LF YAU"
         ],
         "simulationUrl": "simulations/ICT/insertion-sort.html",
@@ -69,17 +69,17 @@
         "id": "inputoutput",
         "category": {
             "en-US": "CL",
-            "zh-HK": "初中 資訊和通訊科技"
+            "zh-HK": "CL"
         },
         "title": {
             "en-US": "input / output devices",
-            "zh-HK": "輸入／輸出"
+            "zh-HK": "input / output devices"
         },
         "description": {
             "en-US": "input / output devices",
-            "zh-HK": "輸入／輸出"
+            "zh-HK": "input / output devices"
         },
-        "contributors": [
+        "contributor": [
             "LF YAU"
         ],
         "simulationUrl": "simulations/CL/input-output.html",
