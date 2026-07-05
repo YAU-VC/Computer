@@ -18,20 +18,27 @@
   </script>
   <style>
     /* Custom scrollbar for terminal/code areas */
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    
+    /* Hide scrollbar tracks on mobile for header navigation to look cleaner */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col">
 
   <!-- Application Root -->
-  <div id="app" class="flex-1 flex flex-col h-screen overflow-hidden">
+  <div id="app" class="flex-1 flex flex-col min-h-screen lg:h-screen lg:overflow-hidden">
     <!-- Rendered by JS -->
   </div>
 
   <script>
+    // --- Gemini API Configuration ---
+    const apiKey = ""; // Runtime automatically injected or configured
+
     // --- State Management ---
     let studentName = "";
     let currentLevelIdx = 0;
@@ -42,11 +49,17 @@
     let showSuccessModal = false;
     let successTimeout = null;
 
+    // --- State for AI Features ---
+    let activeRightTab = "visualizer"; // 'visualizer' or 'ai_coach'
+    let chatMessages = [];
+    let isAiLoading = false;
+    let aiErrorMessage = "";
+
     // --- Helper: Blank Input Generator ---
     const Blank = (id, width = "w-16") => {
       const isWrong = wrongBlanks.includes(id);
       const val = practiceAnswers[id] || '';
-      const baseClasses = "bg-slate-800/80 border-b-2 px-1 py-0 outline-none font-mono text-[1em] text-center mx-1 rounded-t-sm transition-all";
+      const baseClasses = "bg-slate-800/80 border-b-2 px-1 py-1 outline-none font-mono text-[1em] text-center mx-1 rounded-t-sm transition-all focus:ring-1 focus:ring-blue-500";
       const errorClasses = "border-red-500 bg-red-900/40 text-red-200 focus:border-red-400 focus:bg-red-800/60";
       const validClasses = "border-blue-400 text-yellow-300 focus:border-green-400 focus:bg-slate-700";
       
@@ -537,7 +550,150 @@
       const val = document.getElementById('student-name-input').value.trim();
       if (val) {
         studentName = val;
+        // Seed first welcome message from AI
+        chatMessages = [{
+          role: "assistant",
+          text: `Hi ${studentName}! 👋 I am your Valtorta College AI Python Coach. Feel free to ask me anything about coding, or click "✨ Explain Concept with AI" on any concept level to get help!`
+        }];
         renderApp();
+      }
+    }
+
+    // --- Gemini LLM API Call with Exponential Backoff ---
+    async function callGeminiAPI(prompt, systemInstruction = "") {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
+      if (systemInstruction) {
+        payload.systemInstruction = {
+          parts: [{ text: systemInstruction }]
+        };
+      }
+
+      let delay = 1000;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response.";
+          }
+          
+          // Retry on throttled (429) or server errors (500+)
+          if (response.status === 429 || response.status >= 500) {
+            // resolve retry
+          } else {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        } catch (error) {
+          if (attempt === 4) throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+      throw new Error("Failed to contact the AI Coach after multiple retries.");
+    }
+
+    // --- Interactive AI Assistant Actions ---
+    async function sendChatMessage() {
+      const inputEl = document.getElementById('chat-input-field');
+      const message = inputEl.value.trim();
+      if (!message || isAiLoading) return;
+
+      inputEl.value = "";
+      chatMessages.push({ role: "user", text: message });
+      isAiLoading = true;
+      aiErrorMessage = "";
+      renderApp();
+
+      const level = LEVELS[currentLevelIdx];
+      const systemInstruction = `You are the Valtorta College AI Python Tutor. The student you are talking to is named ${studentName}. They are currently learning Level: ${level.title} (${level.concept}). 
+Your explanations must be short (under 4-5 sentences), encouraging, friendly, and tailored specifically to kids/middle-schoolers. Always use simple real-world analogies. You can write extremely brief, valid Python code snippets if necessary. Do not write long blocks of code.`;
+
+      try {
+        const aiResponse = await callGeminiAPI(message, systemInstruction);
+        chatMessages.push({ role: "assistant", text: aiResponse });
+      } catch (error) {
+        aiErrorMessage = "Oops! Having trouble reaching the Valtorta AI Coach. Please check your connection and try again.";
+      } finally {
+        isAiLoading = false;
+        renderApp();
+        scrollChatToBottom();
+      }
+    }
+
+    async function explainConceptWithAi() {
+      activeRightTab = "ai_coach";
+      isAiLoading = true;
+      aiErrorMessage = "";
+      renderApp();
+
+      const level = LEVELS[currentLevelIdx];
+      const prompt = `Please explain the concept of "${level.title}": "${level.concept}". Provide a short, fun real-world analogy so I can easily understand it.`;
+      const systemInstruction = `You are the Valtorta College AI Python Tutor. You are explaining concepts to ${studentName}. Keep explanations short, clear, engaging, and under 5 sentences. Use helpful emojis.`;
+
+      try {
+        const aiResponse = await callGeminiAPI(prompt, systemInstruction);
+        chatMessages.push({ role: "assistant", text: aiResponse });
+      } catch (error) {
+        aiErrorMessage = "Unable to fetch the concept explanation. Please try again.";
+      } finally {
+        isAiLoading = false;
+        renderApp();
+        scrollChatToBottom();
+      }
+    }
+
+    async function getAiPracticeHint() {
+      activeRightTab = "ai_coach";
+      isAiLoading = true;
+      aiErrorMessage = "";
+      renderApp();
+
+      const level = LEVELS[currentLevelIdx];
+      const studentAnswersStr = level.blanks.map((blank, i) => `Blank ${i}: "${practiceAnswers[i] || ''}"`).join(", ");
+      
+      const prompt = `I am stuck on the practice challenge. 
+The task is: "${level.task}". 
+My current answers filled in the blanks are: [${studentAnswersStr}].
+The hints already provided in-game are: [${level.hints.join(', ')}].
+Can you give me a friendly, supportive hint without giving away the direct answers?`;
+
+      const systemInstruction = `You are the Valtorta College AI Python Tutor guiding a student named ${studentName}. 
+Do NOT reveal the direct answers. Point out where their logic might be incorrect or give them a supportive clue in under 3 sentences. Keep it very motivating!`;
+
+      try {
+        const aiResponse = await callGeminiAPI(prompt, systemInstruction);
+        chatMessages.push({ role: "assistant", text: aiResponse });
+      } catch (error) {
+        aiErrorMessage = "Unable to fetch an AI hint at this moment.";
+      } finally {
+        isAiLoading = false;
+        renderApp();
+        scrollChatToBottom();
+      }
+    }
+
+    function scrollChatToBottom() {
+      const chatContainer = document.getElementById('chat-messages-container');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    }
+
+    function switchRightTab(tab) {
+      activeRightTab = tab;
+      renderApp();
+      if (tab === "ai_coach") {
+        scrollChatToBottom();
       }
     }
 
@@ -577,6 +733,10 @@
           </div>
 
           ${content}
+          
+          <button onclick="getAiPracticeHint()" class="mt-6 z-10 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow transition-all flex items-center gap-2 text-sm active:scale-95">
+            ✨ Stuck? Get AI Hint
+          </button>
         </div>
       `;
     }
@@ -923,7 +1083,7 @@
       `;
     }
 
-    // --- New: Visualizer for Level 9 Counting ---
+    // --- Visualizer for Level 9 Counting ---
     function visualizerCounting(state) {
       let scoresHTML = '';
       const scores = [45, 80, 55, 30];
@@ -931,35 +1091,35 @@
         const isCurrent = state.s === score.toString();
         let cls = isCurrent ? 'ring-4 ring-blue-400 scale-110 z-10 bg-blue-50' : 'bg-white border-slate-200';
         scoresHTML += `
-          <div class="w-20 h-20 rounded-xl shadow-lg border-2 flex flex-col items-center justify-center transition-all duration-500 ${cls}">
-            <div class="text-[10px] text-slate-400 font-bold">score</div>
-            <div class="text-xl font-black ${score >= 50 ? 'text-green-600' : 'text-red-500'} mt-1">${score}</div>
+          <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl shadow-lg border-2 flex flex-col items-center justify-center transition-all duration-500 ${cls}">
+            <div class="text-[9px] sm:text-[10px] text-slate-400 font-bold">score</div>
+            <div class="text-lg sm:text-xl font-black ${score >= 50 ? 'text-green-600' : 'text-red-500'} mt-1">${score}</div>
           </div>
         `;
       });
 
       return `
-        <div class="flex flex-col items-center justify-center h-full p-8 font-bold">
-          <div class="text-slate-500 font-bold mb-4">List: scores</div>
-          <div class="flex gap-4 mb-8">
+        <div class="flex flex-col items-center justify-center h-full p-4 sm:p-8 font-bold">
+          <div class="text-slate-500 font-bold mb-4 text-sm sm:text-base">List: scores</div>
+          <div class="flex gap-2 sm:gap-4 mb-8">
             ${scoresHTML}
           </div>
 
           <!-- Condition Checking Display -->
-          <div class="h-20 mb-8 flex items-center justify-center">
+          <div class="h-20 mb-8 flex items-center justify-center text-center">
             ${state.check !== '-' ? `
-              <div class="bg-indigo-50 border border-indigo-200 px-6 py-3 rounded-full text-indigo-800 text-lg font-bold shadow-sm">
+              <div class="bg-indigo-50 border border-indigo-200 px-4 sm:px-6 py-2 sm:py-3 rounded-full text-indigo-800 text-sm sm:text-lg font-bold shadow-sm">
                 ${state.check}
               </div>
             ` : `
-              <div class="text-slate-400 italic">Loop waiting to execute check...</div>
+              <div class="text-slate-400 italic text-sm">Loop waiting to execute check...</div>
             `}
           </div>
 
           <!-- Passed Counter Box -->
-          <div class="bg-white p-6 rounded-2xl shadow-xl border-2 border-slate-100 flex flex-col items-center justify-center w-48">
-            <div class="text-sm text-slate-500 font-bold mb-2">passed (counter)</div>
-            <div class="text-5xl font-black text-blue-600 transition-all duration-300 transform scale-110">
+          <div class="bg-white p-4 sm:p-6 rounded-2xl shadow-xl border-2 border-slate-100 flex flex-col items-center justify-center w-40 sm:w-48">
+            <div class="text-xs sm:text-sm text-slate-500 font-bold mb-2">passed (counter)</div>
+            <div class="text-4xl sm:text-5xl font-black text-blue-600 transition-all duration-300 transform scale-110">
               ${state.passed}
             </div>
           </div>
@@ -971,40 +1131,40 @@
       return `
         <div class="flex flex-col items-center justify-center h-full p-4 w-full">
            <!-- Factory block -->
-           <div class="w-full max-w-lg border-4 rounded-3xl p-6 relative transition-all duration-500 flex flex-col items-center shadow-2xl ${state.in_func ? 'border-purple-500 bg-purple-50' : 'border-slate-300 bg-white'}">
-             <div class="absolute -top-4 bg-purple-600 text-white px-4 py-1 rounded-full font-bold shadow-md">
+           <div class="w-full max-w-lg border-4 rounded-3xl p-4 sm:p-6 relative transition-all duration-500 flex flex-col items-center shadow-2xl ${state.in_func ? 'border-purple-500 bg-purple-50' : 'border-slate-300 bg-white'}">
+             <div class="absolute -top-4 bg-purple-600 text-white px-4 py-1 rounded-full font-bold shadow-md text-xs sm:text-sm">
                Function: triple(n)
              </div>
              
-             <div class="flex items-center gap-8 mt-4">
+             <div class="flex items-center gap-4 sm:gap-8 mt-4">
                 <div class="flex flex-col items-center">
-                  <div class="text-sm font-bold text-slate-500 mb-2">Input (n)</div>
-                  <div class="w-16 h-16 rounded-full bg-slate-200 border-2 border-slate-400 flex items-center justify-center text-2xl font-black text-slate-700">
+                  <div class="text-xs sm:text-sm font-bold text-slate-500 mb-2">Input (n)</div>
+                  <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-200 border-2 border-slate-400 flex items-center justify-center text-xl sm:text-2xl font-black text-slate-700">
                     ${state.n !== '-' ? state.n : ''}
                   </div>
                 </div>
                 
-                <div class="text-3xl text-purple-400 font-bold">➔</div>
+                <div class="text-2xl sm:text-3xl text-purple-400 font-bold">➔</div>
                 
                 <div class="flex flex-col items-center">
-                  <div class="text-sm font-bold text-slate-500 mb-2">Operation</div>
-                  <div class="bg-purple-100 text-purple-800 px-6 py-4 rounded-xl font-mono text-xl font-bold border-2 border-purple-200">
+                  <div class="text-xs sm:text-sm font-bold text-slate-500 mb-2">Operation</div>
+                  <div class="bg-purple-100 text-purple-800 px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-mono text-sm sm:text-xl font-bold border-2 border-purple-200">
                     n * 3
                   </div>
                 </div>
              </div>
            </div>
            
-           <div class="flex w-full max-w-md justify-between mt-12 gap-8">
-              <div class="flex-1 bg-white p-4 rounded-xl shadow-md border-2 border-slate-200 text-center">
-                <div class="text-sm text-slate-500 font-bold mb-2">Variable: x</div>
-                <div class="text-4xl font-black transition-all duration-500 ${state.x !== '-' ? 'text-blue-500 scale-110' : 'text-slate-300'}">
+           <div class="flex w-full max-w-md justify-between mt-8 sm:mt-12 gap-4 sm:gap-8">
+              <div class="flex-1 bg-white p-3 sm:p-4 rounded-xl shadow-md border-2 border-slate-200 text-center">
+                <div class="text-xs sm:text-sm text-slate-500 font-bold mb-2">Variable: x</div>
+                <div class="text-3xl sm:text-4xl font-black transition-all duration-500 ${state.x !== '-' ? 'text-blue-500 scale-110' : 'text-slate-300'}">
                   ${state.x}
                 </div>
               </div>
-              <div class="flex-1 bg-white p-4 rounded-xl shadow-md border-2 border-slate-200 text-center">
-                <div class="text-sm text-slate-500 font-bold mb-2">Variable: y</div>
-                <div class="text-4xl font-black transition-all duration-500 ${state.y !== '-' ? 'text-green-500 scale-110' : 'text-slate-300'}">
+              <div class="flex-1 bg-white p-3 sm:p-4 rounded-xl shadow-md border-2 border-slate-200 text-center">
+                <div class="text-xs sm:text-sm text-slate-500 font-bold mb-2">Variable: y</div>
+                <div class="text-4xl sm:text-5xl font-black transition-all duration-500 ${state.y !== '-' ? 'text-green-500 scale-110' : 'text-slate-300'}">
                   ${state.y}
                 </div>
               </div>
@@ -1035,6 +1195,53 @@
       }
     }
 
+    // --- Interactive AI Assistant Panel ---
+    function renderAiCoachHTML(level) {
+      const isPractice = level.type === 'practice';
+      
+      const messagesHTML = chatMessages.map(msg => {
+        const isUser = msg.role === 'user';
+        return `
+          <div class="flex ${isUser ? 'justify-end' : 'justify-start'}">
+            <div class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm font-medium ${isUser ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200'} shadow-sm">
+              ${msg.text}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="flex flex-col h-full bg-slate-50">
+          <!-- Chat History -->
+          <div class="flex-1 p-4 overflow-y-auto space-y-4 min-h-[250px]" id="chat-messages-container">
+            ${messagesHTML}
+            ${isAiLoading ? `
+              <div class="flex justify-start">
+                <div class="bg-slate-100 text-slate-500 border border-slate-200 rounded-2xl rounded-tl-none px-4 py-2.5 text-sm font-medium flex items-center gap-2">
+                  <span class="animate-bounce">●</span>
+                  <span class="animate-bounce delay-100">●</span>
+                  <span class="animate-bounce delay-200">●</span>
+                  <span>AI Coach is thinking...</span>
+                </div>
+              </div>
+            ` : ''}
+            ${aiErrorMessage ? `
+              <div class="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs text-center font-medium">
+                ${aiErrorMessage}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Chat Bar Input Controls -->
+          <div class="p-3 border-t border-slate-200 bg-white flex gap-2 shrink-0">
+            <input type="text" id="chat-input-field" class="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ask your AI coach a question..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button onclick="sendChatMessage()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold transition-colors text-sm shadow shadow-blue-500/10 active:scale-95 flex items-center justify-center">
+              Send
+            </button>
+          </div>
+        </div>
+      `;
+    }
 
     // --- Main Renderer ---
     function renderApp() {
@@ -1091,8 +1298,8 @@
 
       const navButtonsHTML = `
         <div class="flex flex-col gap-2 w-full">
-          <div class="flex gap-1.5 justify-start overflow-x-auto pb-0.5">${renderRowButtons(row1, 0)}</div>
-          <div class="flex gap-1.5 justify-start overflow-x-auto">${renderRowButtons(row2, itemsPerRow)}</div>
+          <div class="flex gap-1.5 justify-start overflow-x-auto pb-0.5 no-scrollbar">${renderRowButtons(row1, 0)}</div>
+          <div class="flex gap-1.5 justify-start overflow-x-auto no-scrollbar">${renderRowButtons(row2, itemsPerRow)}</div>
         </div>
       `;
 
@@ -1164,13 +1371,19 @@
         <main class="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 gap-6 overflow-hidden">
           
           <!-- Left Column -->
-          <div class="w-full lg:w-5/12 flex flex-col gap-4 overflow-hidden">
+          <div class="w-full lg:w-5/12 flex flex-col gap-4 overflow-hidden shrink-0">
             
             <div class="border rounded-xl p-5 shadow-lg shrink-0 ${isPractice ? 'bg-indigo-900/50 border-indigo-500/50' : 'bg-slate-800 border-slate-700'} relative">
               <h2 class="${isPractice ? 'text-indigo-300' : 'text-blue-400'} font-bold text-sm uppercase tracking-wider mb-2">
                 ${isPractice ? 'Practice Concept' : 'Current Concept'}
               </h2>
               <p class="text-slate-200 leading-relaxed text-lg">${level.concept}</p>
+              
+              ${!isPractice ? `
+                <button onclick="explainConceptWithAi()" class="mt-4 px-4 py-2 bg-blue-600/80 hover:bg-blue-600 text-white font-bold rounded-lg shadow text-xs transition-all flex items-center gap-1.5 active:scale-95">
+                  ✨ Explain Concept with AI
+                </button>
+              ` : ''}
             </div>
 
             <div class="bg-slate-950 rounded-xl border border-slate-800 flex-1 flex flex-col min-h-[250px] shadow-2xl relative">
@@ -1199,13 +1412,21 @@
 
           <!-- Right Column -->
           <div class="w-full lg:w-7/12 bg-slate-100 rounded-2xl shadow-inner relative overflow-hidden flex flex-col min-h-[400px]">
-            <div class="bg-slate-200 text-slate-500 text-xs font-bold uppercase tracking-widest text-center py-2 border-b border-slate-300 shrink-0 relative">
-              ${isPractice ? 'Practice Feedback' : 'Memory & Execution Visualizer'}
+            <!-- Tab Headers -->
+            <div class="bg-slate-200 text-slate-500 text-xs font-bold uppercase tracking-widest flex items-center justify-between border-b border-slate-300 shrink-0 relative">
+              <div class="flex">
+                <button onclick="switchRightTab('visualizer')" class="px-4 py-3 font-black border-r border-slate-300 transition-colors ${activeRightTab === 'visualizer' ? 'bg-slate-100 text-slate-800' : 'hover:bg-slate-300 text-slate-500'}">
+                  📊 Visualizer
+                </button>
+                <button onclick="switchRightTab('ai_coach')" class="px-4 py-3 font-black transition-colors ${activeRightTab === 'ai_coach' ? 'bg-slate-100 text-slate-800' : 'hover:bg-slate-300 text-slate-500'}">
+                  🤖 AI Coach
+                </button>
+              </div>
               ${isPractice ? `<span class="absolute right-3 top-1/2 -translate-y-1/2 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md font-mono font-bold tracking-normal uppercase text-[10px]">Student: ${studentName}</span>` : ''}
             </div>
             
             <div class="flex-1 relative overflow-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]" id="visualizer-container">
-              ${getVisualizerHTML(level)}
+              ${activeRightTab === 'visualizer' ? getVisualizerHTML(level) : renderAiCoachHTML(level)}
 
               ${showSuccessModal ? `
                 <div class="absolute inset-0 bg-white/40 backdrop-blur-sm flex items-center justify-center z-50">
