@@ -1,5 +1,27 @@
 [
     {
+        "id": "bridging",
+        "category": {
+            "en-US": "ICT",
+            "zh-HK": "ICT"
+        },
+        "title": {
+            "en-US": "Python",
+            "zh-HK": "Python"
+        },
+        "description": {
+            "en-US": "Python games",
+            "zh-HK": "Python games."
+        },
+        "contributor": [
+            "LF YAU"
+        ],
+        "simulationUrl": "simulations/ICT/bridging.html",
+        "screenshotUrl": "screenshots/python.png",
+        "createdAt": "2026-07-04",
+        "updatedAt": "2026-07-04"
+    },
+    {
         "id": "python",
         "category": {
             "en-US": "ICT",
