@@ -194,7 +194,7 @@
         );
 
 
-        // --- Game Data ---
+        // --- Game Data (Answers redistributed to prevent option concentration) ---
         const DEVICES = [
             {
                 id: 'keyboard',
@@ -204,12 +204,12 @@
                 description: "Allows you to type letters, numbers, and commands into the computer.",
                 question: "What is the primary function of this device?",
                 options: [
+                    "To enter alphanumeric data", // Answer moved to Index 0
                     "To display video games",
-                    "To enter alphanumeric data",
                     "To print documents on paper",
                     "To record high-quality sound"
                 ],
-                correctOption: 1
+                correctOption: 0
             },
             {
                 id: 'monitor',
@@ -221,7 +221,7 @@
                 options: [
                     "It processes data like a brain",
                     "It captures images from the room",
-                    "It displays visual information to the user",
+                    "It displays visual information to the user", // Answer kept at Index 2
                     "It stores all your files permanently"
                 ],
                 correctOption: 2
@@ -235,11 +235,11 @@
                 question: "What is this device mainly used for?",
                 options: [
                     "Typing long essays",
-                    "Controlling the on-screen cursor",
                     "Scanning physical photos",
-                    "Cooling down the CPU"
+                    "Cooling down the CPU",
+                    "Controlling the on-screen cursor" // Answer moved to Index 3
                 ],
-                correctOption: 1
+                correctOption: 3
             },
             {
                 id: 'printer',
@@ -250,7 +250,7 @@
                 question: "What is the output of this device?",
                 options: [
                     "Digital video files",
-                    "Physical paper documents",
+                    "Physical paper documents", // Answer kept at Index 1
                     "Audio waves",
                     "3D Holograms"
                 ],
@@ -264,7 +264,7 @@
                 description: "Converts sound into an electrical signal.",
                 question: "How does this device interact with the computer?",
                 options: [
-                    "It captures audio from the environment",
+                    "It captures audio from the environment", // Answer kept at Index 0
                     "It projects sound into the room",
                     "It takes photos of the user",
                     "It allows you to listen to music"
@@ -281,10 +281,10 @@
                 options: [
                     "Hearing what others say",
                     "Typing messages in chat",
-                    "Transmitting your video feed",
-                    "Printing meeting notes"
+                    "Printing meeting notes",
+                    "Transmitting your video feed" // Answer moved to Index 3
                 ],
-                correctOption: 2
+                correctOption: 3
             },
             {
                 id: 'headset',
@@ -295,7 +295,7 @@
                 question: "Why is a Headset classified as 'Both'?",
                 options: [
                     "It blocks outside noise",
-                    "It allows you to hear (Output) and speak (Input)",
+                    "It allows you to hear (Output) and speak (Input)", // Answer kept at Index 1
                     "It connects via Bluetooth",
                     "It is smaller than speakers"
                 ],
@@ -310,11 +310,11 @@
                 question: "Why is a touchscreen considered both Input and Output?",
                 options: [
                     "It has a keyboard attached",
-                    "It displays visual info AND accepts touch commands",
                     "It is wireless",
+                    "It displays visual info AND accepts touch commands", // Answer moved to Index 2
                     "It can print paper while you type"
                 ],
-                correctOption: 1
+                correctOption: 2
             },
             {
                 id: 'barcode',
@@ -325,11 +325,11 @@
                 question: "What is the primary use of this device?",
                 options: [
                     "To print receipts",
-                    "To scan and input product codes",
                     "To display prices on a screen",
-                    "To generate QR codes"
+                    "To generate QR codes",
+                    "To scan and input product codes" // Answer moved to Index 3
                 ],
-                correctOption: 1
+                correctOption: 3
             }
         ];
 
